@@ -1,20 +1,75 @@
 # Reproducible Research: Peer Assessment 1
-
+library(plyr)
+library(ggplot2)
+library(scales)
 
 ## Loading and preprocessing the data
+inData <- read.csv("activity.csv", header=TRUE, colClasses=c("numeric", "character", "integer"))
+inData$date <- strptime(inData$date, "%Y-%m-%d")
 
-
+inData$interval <- sprintf("%04d",inData$interval)
+inData$interval <- strptime(inData$interval, "%H%M")
 
 ## What is mean total number of steps taken per day?
-
-
+stepsPerDay <- ddply(inData, c("date"), function(df)sum(df$steps, na.rm=TRUE))
+names(stepsPerDay) <- c("date", "steps")
+qplot(steps, data = stepsPerDay, binwidth=1600)
+mean(stepsPerDay$steps)
+median(stepsPerDay$steps)
 
 ## What is the average daily activity pattern?
+stepsPerInt <- ddply(inData, c("interval"),
+                     function(df)c(sum(df$steps, na.rm=TRUE),
+                                   mean(df$steps, na.rm=TRUE),
+                                   var(df$steps, na.rm=TRUE)))
+names(stepsPerInt) <- c("interval", "sum", "mean", "variance")
+tail(stepsPerInt)
+intPlot <- ggplot(stepsPerInt, aes(interval, mean, group=1))
+intPlot <- intPlot + geom_line()
+intPlot <- intPlot + scale_x_datetime(labels = date_format("%H:%M"))
+intPlot
 
-
-
+format(stepsPerInt[order(stepsPerInt$mean, decreasing=TRUE)[1],1], "%H:%M")
 ## Imputing missing values
+naRecs <- is.na(inData$steps)
+sum(naRecs)
 
+naReplacement <- sapply(as.integer(as.POSIXct(inData[naRecs,"interval"])), FUN=function(ts) which(as.integer(as.POSIXct(stepsPerInt$interval)) == ts))
 
+inData$steps[naRecs] <- naReplacement
+
+stepsPerDay <- ddply(inData, c("date"), function(df)sum(df$steps, na.rm=TRUE))
+names(stepsPerDay) <- c("date", "steps")
+
+mean(stepsPerDay$steps)
+median(stepsPerDay$steps)
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+inData <- cbind(inData, weekdays(inData$date))
+weekdays <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+inData <- cbind(inData, as.character(inData$day) %in% weekdays)
+names(inData)[5] <- "isWeekday"
+
+stepsPerWeekDay <- ddply(inData[inData$isWeekday,], c("interval"), function(df)mean(df$steps))
+
+stepsPerWeekEnd <- ddply(inData[!inData$isWeekday,], c("interval"), function(df)mean(df$steps))
+
+stepsPerWeekDay <- cbind(stepsPerWeekDay, isWeekday=1)
+stepsPerWeekEnd <- cbind(stepsPerWeekEnd, isWeekday=0)
+
+tData <- rbind(stepsPerWeekDay, stepsPerWeekEnd)
+
+ggplot(data = tData, aes(interval, V1, group=isWeekday)) +
+  geom_line() +
+  facet_grid(isWeekday ~. )
+
+
+
+
+
+
+
+
+
+
