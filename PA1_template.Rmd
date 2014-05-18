@@ -13,30 +13,39 @@ inData$interval <- strptime(inData$interval, "%H%M")
 ## What is mean total number of steps taken per day?
 stepsPerDay <- ddply(inData, c("date"), function(df)sum(df$steps, na.rm=TRUE))
 names(stepsPerDay) <- c("date", "steps")
-qplot(steps, data = stepsPerDay, binwidth=1600)
+qplot(steps, data = stepsPerDay, binwidth=1600) +
+  xlab("Number of Steps") +
+  ylab("Frequency") +
+  ggtitle("Histogram of Mean Daily Number of Steps")
+
 mean(stepsPerDay$steps)
+
 median(stepsPerDay$steps)
 
 ## What is the average daily activity pattern?
 stepsPerInt <- ddply(inData, c("interval"),
-                     function(df)c(sum(df$steps, na.rm=TRUE),
-                                   mean(df$steps, na.rm=TRUE),
-                                   var(df$steps, na.rm=TRUE)))
-names(stepsPerInt) <- c("interval", "sum", "mean", "variance")
-tail(stepsPerInt)
-intPlot <- ggplot(stepsPerInt, aes(interval, mean, group=1))
-intPlot <- intPlot + geom_line()
-intPlot <- intPlot + scale_x_datetime(labels = date_format("%H:%M"))
-intPlot
+                     function(df) mean(df$steps, na.rm=TRUE))
+names(stepsPerInt) <- c("interval", "mean")
+ggplot(stepsPerInt, aes(interval, mean, group=1)) +
+  geom_line() +
+  scale_x_datetime(labels = date_format("%H:%M")) +
+  xlab("Time Interval") +
+  ylab("Mean Number of Steps") +
+  ggtitle("Mean Number of Steps per Interval")
 
 format(stepsPerInt[order(stepsPerInt$mean, decreasing=TRUE)[1],1], "%H:%M")
+
 ## Imputing missing values
 naRecs <- is.na(inData$steps)
 sum(naRecs)
 
-naReplacement <- sapply(as.integer(as.POSIXct(inData[naRecs,"interval"])), FUN=function(ts) which(as.integer(as.POSIXct(stepsPerInt$interval)) == ts))
+naReps <- sapply(as.integer(as.POSIXct(inData[naRecs,"interval"])),
+                 FUN=function(ts) which(
+                   as.integer(
+                     as.POSIXct(stepsPerInt$interval)) == ts))
 
-inData$steps[naRecs] <- naReplacement
+inData$steps[naRecs] <- naReps
+sum(is.na(inData$steps))
 
 stepsPerDay <- ddply(inData, c("date"), function(df)sum(df$steps, na.rm=TRUE))
 names(stepsPerDay) <- c("date", "steps")
@@ -46,30 +55,24 @@ median(stepsPerDay$steps)
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
-inData <- cbind(inData, weekdays(inData$date))
+inData <- cbind(inData, day=weekdays(inData$date))
 weekdays <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
-inData <- cbind(inData, as.character(inData$day) %in% weekdays)
+inData <- cbind(inData, (as.character(inData$day) %in% weekdays))
 names(inData)[5] <- "isWeekday"
 
 stepsPerWeekDay <- ddply(inData[inData$isWeekday,], c("interval"), function(df)mean(df$steps))
-
 stepsPerWeekEnd <- ddply(inData[!inData$isWeekday,], c("interval"), function(df)mean(df$steps))
 
 stepsPerWeekDay <- cbind(stepsPerWeekDay, isWeekday=1)
 stepsPerWeekEnd <- cbind(stepsPerWeekEnd, isWeekday=0)
 
 tData <- rbind(stepsPerWeekDay, stepsPerWeekEnd)
-
+tData$isWeekday <- as.factor(tData$isWeekday)
+levels(tData$isWeekday) <- c("Weekend", "Weekday")
 ggplot(data = tData, aes(interval, V1, group=isWeekday)) +
   geom_line() +
-  facet_grid(isWeekday ~. )
-
-
-
-
-
-
-
-
-
-
+  facet_grid(isWeekday ~. ) +
+  xlab("Time Interval") +
+  scale_x_datetime(labels = date_format("%H:%M")) +
+  ylab("Mean Number of Steps") +
+  ggtitle("Mean Number of Steps versus Time Interval")
